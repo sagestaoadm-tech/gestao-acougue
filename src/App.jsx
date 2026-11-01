@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 const modules = [
   { id: 'overview', label: 'Visão geral', icon: '📊' },
@@ -30,13 +30,19 @@ const products = [
   { id: 5, name: 'Linguiça', sku: 'A-005', stock: 64, unit: 'kg', cost: 22.9, sale: 39.5, margin: 42 },
 ];
 
-const employees = [
-  { id: 1, name: 'Marcos Silva', role: 'Gerente', salary: 4200, payment: 'Quinzenal' },
-  { id: 2, name: 'Fernanda Costa', role: 'Caixa', salary: 2850, payment: 'Semanal' },
-  { id: 3, name: 'João Pereira', role: 'Vendedor', salary: 3100, payment: 'Quinzenal' },
-  { id: 4, name: 'Letícia Almeida', role: 'Entrega', salary: 2600, payment: 'Mensal' },
-  { id: 5, name: 'Renato Souza', role: 'Estoquista', salary: 2950, payment: 'Semanal' },
-  { id: 6, name: 'Aline Mendes', role: 'Atendente', salary: 2780, payment: 'Mensal' },
+const initialEmployees = [
+  { id: 1, name: 'Marcos Silva', phone: '(11) 99888-1001', role: 'Gerente', salary: 4200, admissionDate: '2024-01-10', paymentCycle: 'Quinzenal' },
+  { id: 2, name: 'Fernanda Costa', phone: '(11) 99777-2202', role: 'Caixa', salary: 2850, admissionDate: '2024-05-20', paymentCycle: 'Semanal' },
+  { id: 3, name: 'João Pereira', phone: '(11) 99666-3303', role: 'Vendedor', salary: 3100, admissionDate: '2024-03-12', paymentCycle: 'Quinzenal' },
+  { id: 4, name: 'Letícia Almeida', phone: '(11) 99555-4404', role: 'Entrega', salary: 2600, admissionDate: '2024-06-15', paymentCycle: 'Mensal' },
+  { id: 5, name: 'Renato Souza', phone: '(11) 99444-5505', role: 'Estoquista', salary: 2950, admissionDate: '2024-02-01', paymentCycle: 'Semanal' },
+  { id: 6, name: 'Aline Mendes', phone: '(11) 99333-6606', role: 'Atendente', salary: 2780, admissionDate: '2024-07-08', paymentCycle: 'Mensal' },
+];
+
+const payrollSeed = [
+  { id: 1, employeeId: 1, employeeName: 'Marcos Silva', period: '2026-10', baseSalary: 4200, advanceAmount: 350, totalDue: 4550, status: 'pago', paidAt: '2026-10-15', note: 'Vale de 350,00 registrado no pagamento.' },
+  { id: 2, employeeId: 2, employeeName: 'Fernanda Costa', period: '2026-10', baseSalary: 2850, advanceAmount: 0, totalDue: 2850, status: 'pendente', paidAt: '', note: 'Pagto. em aberto.' },
+  { id: 3, employeeId: 3, employeeName: 'João Pereira', period: '2026-10', baseSalary: 3100, advanceAmount: 500, totalDue: 3600, status: 'pendente', paidAt: '', note: 'Adiantamento salarial registrado.' },
 ];
 
 const sales = [
@@ -68,10 +74,17 @@ const dashboardCards = [
 ];
 
 const formatMoney = (value) =>
-  new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+  new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(value || 0));
+
+const formatDate = (value) => {
+  if (!value) return '—';
+  const [year, month, day] = String(value).split('-');
+  if (!year || !month || !day) return value;
+  return `${day}/${month}/${year}`;
+};
 
 function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(Boolean(localStorage.getItem('gestao_acougue_token')));
   const [activeModule, setActiveModule] = useState('overview');
   const [loginData, setLoginData] = useState({ email: 'admin@sadm.com', password: 'adm@2026' });
   const [saleMessage, setSaleMessage] = useState('');
@@ -81,10 +94,85 @@ function App() {
     { id: 2, name: 'Linguiça', price: 39.5, quantity: 2, type: 'kg' },
   ]);
 
+  const [employees, setEmployees] = useState(() => {
+    try {
+      const stored = localStorage.getItem('gestao_acougue_employees');
+      return stored ? JSON.parse(stored) : initialEmployees;
+    } catch (error) {
+      return initialEmployees;
+    }
+  });
+
+  const [employeeForm, setEmployeeForm] = useState({
+    name: '',
+    phone: '',
+    role: '',
+    salary: '',
+    admissionDate: '',
+    paymentCycle: 'Semanal',
+  });
+
+  const [payrollData, setPayrollData] = useState(() => {
+    try {
+      const stored = localStorage.getItem('gestao_acougue_payroll');
+      return stored ? JSON.parse(stored) : payrollSeed;
+    } catch (error) {
+      return payrollSeed;
+    }
+  });
+
+  const [payrollForm, setPayrollForm] = useState({
+    employeeId: '',
+    period: new Date().toISOString().slice(0, 7),
+    advanceAmount: '0',
+    status: 'pendente',
+    note: '',
+    paidAt: '',
+  });
+
+  const [employeeMessage, setEmployeeMessage] = useState('');
+  const [payrollFilterEmployee, setPayrollFilterEmployee] = useState('all');
+  const [payrollFilterStatus, setPayrollFilterStatus] = useState('all');
+  const [payrollFilterPeriod, setPayrollFilterPeriod] = useState('all');
+
+  useEffect(() => {
+    localStorage.setItem('gestao_acougue_employees', JSON.stringify(employees));
+  }, [employees]);
+
+  useEffect(() => {
+    localStorage.setItem('gestao_acougue_payroll', JSON.stringify(payrollData));
+  }, [payrollData]);
+
   const total = useMemo(
     () => cart.reduce((sum, item) => sum + item.price * item.quantity, 0),
     [cart]
   );
+
+  const employeeSummary = useMemo(() => {
+    const totalSalary = employees.reduce((sum, employee) => sum + Number(employee.salary || 0), 0);
+    const totalPending = payrollData
+      .filter((item) => item.status !== 'pago')
+      .reduce((sum, item) => sum + Number(item.totalDue || 0), 0);
+
+    return {
+      totalSalary,
+      totalPending,
+      totalPayed: payrollData
+        .filter((item) => item.status === 'pago')
+        .reduce((sum, item) => sum + Number(item.totalDue || 0), 0),
+    };
+  }, [employees, payrollData]);
+
+  const filteredPayroll = useMemo(() => {
+    return payrollData.filter((record) => {
+      const employeeMatches = payrollFilterEmployee === 'all' || String(record.employeeId) === payrollFilterEmployee;
+      const statusMatches = payrollFilterStatus === 'all' || record.status === payrollFilterStatus;
+      const periodMatches = payrollFilterPeriod === 'all' || record.period === payrollFilterPeriod;
+      return employeeMatches && statusMatches && periodMatches;
+    });
+  }, [payrollData, payrollFilterEmployee, payrollFilterStatus, payrollFilterPeriod]);
+
+  const uniquePeriods = [...new Set(payrollData.map((entry) => entry.period))];
 
   const handleLogin = (event) => {
     event.preventDefault();
@@ -120,6 +208,99 @@ function App() {
   const finishSale = () => {
     setSaleMessage(`Venda finalizada com ${paymentMethod}. Total: ${formatMoney(total)}`);
     setCart([]);
+  };
+
+  const addEmployee = (event) => {
+    event.preventDefault();
+    setEmployeeMessage('');
+
+    if (employees.length >= 6) {
+      setEmployeeMessage('A capacidade máxima é de 6 funcionários cadastrados.');
+      return;
+    }
+
+    const { name, phone, role, salary, admissionDate, paymentCycle } = employeeForm;
+    if (!name || !phone || !role || !salary || !admissionDate) {
+      setEmployeeMessage('Preencha nome, telefone, função, salário e data de admissão.');
+      return;
+    }
+
+    const nextEmployee = {
+      id: Date.now(),
+      name,
+      phone,
+      role,
+      salary: Number(salary),
+      admissionDate,
+      paymentCycle,
+    };
+
+    setEmployees((current) => [...current, nextEmployee]);
+    setEmployeeForm({
+      name: '',
+      phone: '',
+      role: '',
+      salary: '',
+      admissionDate: '',
+      paymentCycle: 'Semanal',
+    });
+    setEmployeeMessage('Funcionário cadastrado com sucesso.');
+  };
+
+  const registerPayrollEntry = (event) => {
+    event.preventDefault();
+
+    const employeeId = Number(payrollForm.employeeId);
+    if (!employeeId) {
+      setEmployeeMessage('Selecione um funcionário para registrar a folha.');
+      return;
+    }
+
+    const employee = employees.find((item) => item.id === employeeId);
+    if (!employee) {
+      setEmployeeMessage('Funcionário não encontrado.');
+      return;
+    }
+
+    const baseSalary = Number(employee.salary || 0);
+    const advanceAmount = Number(payrollForm.advanceAmount || 0);
+    const entry = {
+      id: Date.now(),
+      employeeId: employee.id,
+      employeeName: employee.name,
+      period: payrollForm.period || new Date().toISOString().slice(0, 7),
+      baseSalary,
+      advanceAmount,
+      totalDue: baseSalary + advanceAmount,
+      status: payrollForm.status || 'pendente',
+      paidAt: payrollForm.status === 'pago' ? payrollForm.paidAt || new Date().toISOString().slice(0, 10) : '',
+      note: payrollForm.note || 'Controle gerencial de pagamento.',
+    };
+
+    setPayrollData((current) => [entry, ...current]);
+    setPayrollForm({
+      employeeId: '',
+      period: new Date().toISOString().slice(0, 7),
+      advanceAmount: '0',
+      status: 'pendente',
+      note: '',
+      paidAt: '',
+    });
+    setEmployeeMessage('Registro da folha atualizado com sucesso.');
+  };
+
+  const togglePayrollStatus = (id) => {
+    setPayrollData((current) =>
+      current.map((item) => {
+        if (item.id !== id) return item;
+        const isPaid = item.status === 'pago';
+        return {
+          ...item,
+          status: isPaid ? 'pendente' : 'pago',
+          paidAt: isPaid ? '' : new Date().toISOString().slice(0, 10),
+        };
+      })
+    );
   };
 
   if (!isAuthenticated) {
@@ -350,26 +531,419 @@ function App() {
             </div>
           </div>
         );
-      case 'deliveries':
-        return <div className="content-block"><h2>Entregas</h2><div className="panel"><ul className="stack-list"><li>Pedido 1002 • Bairro Centro • Em rota</li><li>Pedido 1004 • Jardim São Paulo • Agendado</li></ul></div></div>;
       case 'employees':
         return (
           <div className="content-block">
-            <div className="section-heading"><div><span className="eyebrow">Colaboradores</span><h2>Funcionários</h2></div><button className="primary-button small">Novo funcionário</button></div>
+            <div className="section-heading">
+              <div>
+                <span className="eyebrow">Colaboradores</span>
+                <h2>Funcionários</h2>
+              </div>
+              <span className="success-span">Máximo: 6 funcionários</span>
+            </div>
+
+            <div className="panel">
+              <form onSubmit={addEmployee} className="form-grid">
+                <label>
+                  Nome
+                  <input
+                    value={employeeForm.name}
+                    onChange={(event) => setEmployeeForm({ ...employeeForm, name: event.target.value })}
+                    placeholder="Ex.: Carlos Souza"
+                  />
+                </label>
+                <label>
+                  Telefone
+                  <input
+                    value={employeeForm.phone}
+                    onChange={(event) => setEmployeeForm({ ...employeeForm, phone: event.target.value })}
+                    placeholder="(11) 99999-9999"
+                  />
+                </label>
+                <label>
+                  Função
+                  <input
+                    value={employeeForm.role}
+                    onChange={(event) => setEmployeeForm({ ...employeeForm, role: event.target.value })}
+                    placeholder="Ex.: Vendedor"
+                  />
+                </label>
+                <label>
+                  Salário
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={employeeForm.salary}
+                    onChange={(event) => setEmployeeForm({ ...employeeForm, salary: event.target.value })}
+                    placeholder="0.00"
+                  />
+                </label>
+                <label>
+                  Data de admissão
+                  <input
+                    type="date"
+                    value={employeeForm.admissionDate}
+                    onChange={(event) => setEmployeeForm({ ...employeeForm, admissionDate: event.target.value })}
+                  />
+                </label>
+                <label>
+                  Pagamento
+                  <select
+                    value={employeeForm.paymentCycle}
+                    onChange={(event) => setEmployeeForm({ ...employeeForm, paymentCycle: event.target.value })}
+                  >
+                    <option>Semanal</option>
+                    <option>Quinzenal</option>
+                    <option>Mensal</option>
+                  </select>
+                </label>
+                <div style={{ gridColumn: '1 / -1' }}>
+                  <button type="submit" className="primary-button">Adicionar funcionário</button>
+                </div>
+              </form>
+
+              {employeeMessage && <div className="status-message small-status">{employeeMessage}</div>}
+            </div>
+
             <div className="card-grid simple-grid">
               {employees.map((person) => (
                 <div className="panel employee-card" key={person.id}>
                   <span className="employee-role">{person.role}</span>
                   <h3>{person.name}</h3>
+                  <p>Telefone: {person.phone}</p>
                   <p>Salário: {formatMoney(person.salary)}</p>
-                  <p>Pagamento: {person.payment}</p>
+                  <p>Pagamento: {person.paymentCycle}</p>
+                  <p>Admissão: {formatDate(person.admissionDate)}</p>
                 </div>
               ))}
             </div>
           </div>
         );
       case 'payroll':
-        return <div className="content-block"><h2>Folha de pagamento</h2><div className="panel"><table><thead><tr><th>Funcionário</th><th>Período</th><th>Bruto</th><th>Liquido</th></tr></thead><tbody><tr><td>Marcos Silva</td><td>09/11</td><td>R$ 4.200</td><td>R$ 3.870</td></tr></tbody></table></div></div>;
+        return (
+          <div className="content-block">
+            <div className="section-heading">
+              <div>
+                <span className="eyebrow">Folha</span>
+                <h2>Folha de pagamento</h2>
+              </div>
+              <span className="danger-span">Controle gerencial</span>
+            </div>
+
+            <div className="card-grid simple-grid">
+              <div className="panel">
+                <h3>Despesa total</h3>
+                <p><strong>{formatMoney(employeeSummary.totalSalary)}</strong></p>
+              </div>
+              <div className="panel">
+                <h3>Pendentes</h3>
+                <p><strong>{formatMoney(employeeSummary.totalPending)}</strong></p>
+              </div>
+              <div className="panel">
+                <h3>Pagos</h3>
+                <p><strong>{formatMoney(employeeSummary.totalPayed)}</strong></p>
+              </div>
+              <div className="panel">
+                <h3>Funcionários</h3>
+                <p><strong>{employees.length}/6</strong></p>
+              </div>
+            </div>
+
+            <div className="panel">
+              <form onSubmit={registerPayrollEntry} className="form-grid">
+                <label>
+                  Funcionário
+                  <select
+                    value={payrollForm.employeeId}
+                    onChange={(event) => setPayrollForm({ ...payrollForm, employeeId: event.target.value })}
+                  >
+                    <option value="">Selecione</option>
+                    {employees.map((employee) => (
+                      <option key={employee.id} value={employee.id}>{employee.name}</option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Período
+                  <input
+                    type="month"
+                    value={payrollForm.period}
+                    onChange={(event) => setPayrollForm({ ...payrollForm, period: event.target.value })}
+                  />
+                </label>
+                <label>
+                  Vale / adiantamento
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={payrollForm.advanceAmount}
+                    onChange={(event) => setPayrollForm({ ...payrollForm, advanceAmount: event.target.value })}
+                  />
+                </label>
+                <label>
+                  Situação
+                  <select
+                    value={payrollForm.status}
+                    onChange={(event) => setPayrollForm({ ...payrollForm, status: event.target.value })}
+                  >
+                    <option value="pendente">Pendente</option>
+                    <option value="pago">Pago</option>
+                  </select>
+                </label>
+                <label>
+                  Data do pagamento
+                  <input
+                    type="date"
+                    value={payrollForm.paidAt}
+                    onChange={(event) => setPayrollForm({ ...payrollForm, paidAt: event.target.value })}
+                  />
+                </label>
+                <label>
+                  Observação
+                  <input
+                    value={payrollForm.note}
+                    onChange={(event) => setPayrollForm({ ...payrollForm, note: event.target.value })}
+                    placeholder="Motivo ou observação"
+                  />
+                </label>
+                <div style={{ gridColumn: '1 / -1' }}>
+                  <button type="submit" className="primary-button">Registrar pagamento</button>
+                </div>
+              </form>
+            </div>
+
+            <div className="panel">
+              <div className="form-grid" style={{ marginBottom: '14px' }}>
+                <label>
+                  Funcionário
+                  <select value={payrollFilterEmployee} onChange={(event) => setPayrollFilterEmployee(event.target.value)}>
+                    <option value="all">Todos</option>
+                    {employees.map((employee) => (
+                      <option key={employee.id} value={String(employee.id)}>{employee.name}</option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Situação
+                  <select value={payrollFilterStatus} onChange={(event) => setPayrollFilterStatus(event.target.value)}>
+                    <option value="all">Todas</option>
+                    <option value="pendente">Pendentes</option>
+                    <option value="pago">Pagos</option>
+                  </select>
+                </label>
+                <label>
+                  Período
+                  <select value={payrollFilterPeriod} onChange={(event) => setPayrollFilterPeriod(event.target.value)}>
+                    <option value="all">Todos</option>
+                    {uniquePeriods.map((period) => (
+                      <option key={period} value={period}>{period}</option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+
+              <table>
+                <thead>
+                  <tr>
+                    <th>Funcionário</th>
+                    <th>Período</th>
+                    <th>Salário</th>
+                    <th>Vales</th>
+                    <th>Total a pagar</th>
+                    <th>Status</th>
+                    <th>Ações</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredPayroll.map((record) => (
+                    <tr key={record.id}>
+                      <td>{record.employeeName}</td>
+                      <td>{record.period}</td>
+                      <td>{formatMoney(record.baseSalary)}</td>
+                      <td>{formatMoney(record.advanceAmount)}</td>
+                      <td>{formatMoney(record.totalDue)}</td>
+                      <td>
+                        <span className={record.status === 'pago' ? 'success-span' : 'danger-span'}>
+                          {record.status === 'pago' ? 'Pago' : 'Pendente'}
+                        </span>
+                      </td>
+                      <td>
+                        <button className="secondary-button small" onClick={() => togglePayrollStatus(record.id)} type="button">
+                          {record.status === 'pago' ? 'Marcar pendente' : 'Marcar pago'}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        );
+      case 'deliveries':
+        return <div className="content-block"><h2>Entregas</h2><div className="panel"><ul className="stack-list"><li>Pedido 1002 • Bairro Centro • Em rota</li><li>Pedido 1004 • Jardim São Paulo • Agendado</li></ul></div></div>;
+      case 'payroll':
+        return (
+          <div className="content-block">
+            <div className="section-heading">
+              <div>
+                <span className="eyebrow">Folha</span>
+                <h2>Folha de pagamento</h2>
+              </div>
+              <span className="danger-span">Controle gerencial</span>
+            </div>
+
+            <div className="card-grid simple-grid">
+              <div className="panel">
+                <h3>Despesa total</h3>
+                <p><strong>{formatMoney(employeeSummary.totalSalary)}</strong></p>
+              </div>
+              <div className="panel">
+                <h3>Pendentes</h3>
+                <p><strong>{formatMoney(employeeSummary.totalPending)}</strong></p>
+              </div>
+              <div className="panel">
+                <h3>Pagos</h3>
+                <p><strong>{formatMoney(employeeSummary.totalPayed)}</strong></p>
+              </div>
+              <div className="panel">
+                <h3>Funcionários</h3>
+                <p><strong>{employees.length}/6</strong></p>
+              </div>
+            </div>
+
+            <div className="panel">
+              <form onSubmit={registerPayrollEntry} className="form-grid">
+                <label>
+                  Funcionário
+                  <select
+                    value={payrollForm.employeeId}
+                    onChange={(event) => setPayrollForm({ ...payrollForm, employeeId: event.target.value })}
+                  >
+                    <option value="">Selecione</option>
+                    {employees.map((employee) => (
+                      <option key={employee.id} value={employee.id}>{employee.name}</option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Período
+                  <input
+                    type="month"
+                    value={payrollForm.period}
+                    onChange={(event) => setPayrollForm({ ...payrollForm, period: event.target.value })}
+                  />
+                </label>
+                <label>
+                  Vale / adiantamento
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={payrollForm.advanceAmount}
+                    onChange={(event) => setPayrollForm({ ...payrollForm, advanceAmount: event.target.value })}
+                  />
+                </label>
+                <label>
+                  Situação
+                  <select
+                    value={payrollForm.status}
+                    onChange={(event) => setPayrollForm({ ...payrollForm, status: event.target.value })}
+                  >
+                    <option value="pendente">Pendente</option>
+                    <option value="pago">Pago</option>
+                  </select>
+                </label>
+                <label>
+                  Data do pagamento
+                  <input
+                    type="date"
+                    value={payrollForm.paidAt}
+                    onChange={(event) => setPayrollForm({ ...payrollForm, paidAt: event.target.value })}
+                  />
+                </label>
+                <label>
+                  Observação
+                  <input
+                    value={payrollForm.note}
+                    onChange={(event) => setPayrollForm({ ...payrollForm, note: event.target.value })}
+                    placeholder="Motivo ou observação"
+                  />
+                </label>
+                <div style={{ gridColumn: '1 / -1' }}>
+                  <button type="submit" className="primary-button">Registrar pagamento</button>
+                </div>
+              </form>
+            </div>
+
+            <div className="panel">
+              <div className="form-grid" style={{ marginBottom: '14px' }}>
+                <label>
+                  Funcionário
+                  <select value={payrollFilterEmployee} onChange={(event) => setPayrollFilterEmployee(event.target.value)}>
+                    <option value="all">Todos</option>
+                    {employees.map((employee) => (
+                      <option key={employee.id} value={String(employee.id)}>{employee.name}</option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Situação
+                  <select value={payrollFilterStatus} onChange={(event) => setPayrollFilterStatus(event.target.value)}>
+                    <option value="all">Todas</option>
+                    <option value="pendente">Pendentes</option>
+                    <option value="pago">Pagos</option>
+                  </select>
+                </label>
+                <label>
+                  Período
+                  <select value={payrollFilterPeriod} onChange={(event) => setPayrollFilterPeriod(event.target.value)}>
+                    <option value="all">Todos</option>
+                    {uniquePeriods.map((period) => (
+                      <option key={period} value={period}>{period}</option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+
+              <table>
+                <thead>
+                  <tr>
+                    <th>Funcionário</th>
+                    <th>Período</th>
+                    <th>Salário</th>
+                    <th>Vales</th>
+                    <th>Total a pagar</th>
+                    <th>Status</th>
+                    <th>Ações</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredPayroll.map((record) => (
+                    <tr key={record.id}>
+                      <td>{record.employeeName}</td>
+                      <td>{record.period}</td>
+                      <td>{formatMoney(record.baseSalary)}</td>
+                      <td>{formatMoney(record.advanceAmount)}</td>
+                      <td>{formatMoney(record.totalDue)}</td>
+                      <td>
+                        <span className={record.status === 'pago' ? 'success-span' : 'danger-span'}>
+                          {record.status === 'pago' ? 'Pago' : 'Pendente'}
+                        </span>
+                      </td>
+                      <td>
+                        <button className="secondary-button small" onClick={() => togglePayrollStatus(record.id)} type="button">
+                          {record.status === 'pago' ? 'Marcar pendente' : 'Marcar pago'}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        );
       case 'suppliers':
         return <div className="content-block"><h2>Fornecedores</h2><div className="panel"><ul className="stack-list"><li>Frigorífico Norte • Carnes e cortes</li><li>Distribuidora Campo Verde • Produtos secos</li></ul></div></div>;
       case 'purchases':
@@ -377,7 +951,7 @@ function App() {
       case 'cash':
         return <div className="content-block"><h2>Caixa</h2><div className="card-grid simple-grid">{cashFlow.map((item) => <div className="panel" key={item.label}><span className={item.type === 'entrada' ? 'success-span' : 'danger-span'}>{item.type === 'entrada' ? 'Entrada' : 'Saída'}</span><h3>{item.label}</h3><strong>{formatMoney(item.value)}</strong></div>)}</div></div>;
       case 'sales':
-        return <div className="content-block"><h2>Vendas</h2><div className="panel"><table><thead><tr><th>Cliente</th><th>Valor</th><th>Pagamento</th><th>Vendedor</th></tr></thead><tbody>{sales.map((sale) => <tr key={sale.client + sale.date}><td>{sale.client}</td><td>{formatMoney(sale.total)}</td><td>{sale.payment}</td><td>{sale.employee}</td></tr>)}</tbody></table></div></div>;
+        return <div className="content-block"><h2>Vendas</h2><div className="panel"><table><thead><tr><th>Cliente</th><th>Valor</th><th>Pagamento</th><th>Vendedor</th></tr></thead><tbody>{sales.map((sale) => <tr key={`${sale.client}-${sale.date}`}><td>{sale.client}</td><td>{formatMoney(sale.total)}</td><td>{sale.payment}</td><td>{sale.employee}</td></tr>)}</tbody></table></div></div>;
       case 'finance':
         return <div className="content-block"><h2>Visão financeira</h2><div className="panel"><div className="mini-stat"><span>Fluxo de caixa</span><strong>R$ 13.480,00</strong></div><div className="mini-stat"><span>Contas a receber</span><strong>R$ 4.960,00</strong></div><div className="mini-stat"><span>Contas a pagar</span><strong>R$ 2.300,00</strong></div></div></div>;
       case 'expenses':
@@ -389,7 +963,7 @@ function App() {
       case 'profitability':
         return <div className="content-block"><h2>Lucratividade</h2><div className="panel"><table><thead><tr><th>Produto</th><th>Margem</th><th>Lucro</th></tr></thead><tbody>{products.map((product) => <tr key={product.id}><td>{product.name}</td><td>{product.margin}%</td><td>{formatMoney(product.sale * product.stock * (product.margin / 100))}</td></tr>)}</tbody></table></div></div>;
       case 'integrations':
-        return <div className="content-block"><h2>Integrações</h2><div className="card-grid simple-grid"><div className="panel"><h3>Filizola</h3><p>Pronto para integração futura via etiqueta e leitura digital. Necessário validar protocolo e drivers reais.</p></div><div className="panel"><h3>API de pedidos online</h3><p>Lista de pedidos em fila para receber do e-commerce corporativo.</p></div></div></div>;
+        return <div className="content-block"><h2>Integrações</h2><div className="card-grid simple-grid"><div className="panel"><h3>Filizola</h3><p>Pronto para integração futura via etiqueta e pedido online.</p></div><div className="panel"><h3>API de pedidos</h3><p>Lista de pedidos em fila para receber e registrar no caixa.</p></div></div></div>;
       case 'company':
         return <div className="content-block"><h2>Configurações da empresa</h2><div className="panel form-grid"><label>Nome da empresa<input value="Açougue S.A. ADM" /></label><label>CNPJ<input value="12.345.678/0001-90" /></label><label>Endereço<input value="Rua das Flores, 128" /></label><label>Telefone<input value="(11) 3333-7777" /></label></div></div>;
       case 'receivables':
