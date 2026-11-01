@@ -1,17 +1,7 @@
-{
-  "name": "gestao-acougue-server",
-  "version": "1.0.0",
-  "private": true,
-  "type": "module",
-  "scripts": {
-    "dev": "node --watch src/app.js",
-    "start": "node src/app.js"
-  },
-  "dependencies": {
-    "bcryptjs": "^2.4.3",
-    "dotenv": "^16.4.5",
-    "express": "^4.21.2",
-    "jsonwebtoken": "^9.0.2",
-    "pg": "^8.12.0"
-  }
-}
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=gestao_acougue
+DB_USER=postgres
+DB_PASSWORD=sua_senha
+PORT=3001
+JWT_SECRET=troque_essa_chave
