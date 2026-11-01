@@ -68,6 +68,15 @@ npm run dev
 - Históricos de auditoria
 - Separação preparada por empresa
 
+## Etapa 3 concluída
+
+- Cadastro de produtos com código interno, código de barras e unidade
+- Custo por kg, preço de venda por kg e margem automática
+- Estoque mínimo e controle de quantidade
+- Histórico de entradas e saídas
+- Busca por produto e resumo do estoque
+- Estrutura de integração futura com balança digital e etiquetas
+
 ## Observações importantes
 
 - As senhas não ficam expostas no código.
@@ -76,7 +85,7 @@ npm run dev
 
 ## Próxima etapa
 
-- Cadastro completo de produtos e estoque
-- controles de movimentação, custo e margem
-- suporte a venda por peso e unidade
-- integração de balança digital documentada
+- PDV completo com carrinho, pagamento, desconto, acréscimo e finalização de venda
+- clientes e entregas
+- funcionários e folha
+- financeiro e relatórios
