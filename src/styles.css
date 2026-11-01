@@ -158,6 +158,9 @@ function App() {
   const [statusMessage, setStatusMessage] = useState('');
   const [saleMessage, setSaleMessage] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('PIX');
+  const [pdvQuery, setPdvQuery] = useState('');
+  const [discountPercent, setDiscountPercent] = useState(0);
+  const [additionPercent, setAdditionPercent] = useState(0);
   const [cart, setCart] = useState([
     { id: 1, name: 'Picanha', price: 89.9, quantity: 1, type: 'kg' },
     { id: 2, name: 'Linguiça', price: 39.5, quantity: 2, type: 'kg' },
@@ -167,10 +170,14 @@ function App() {
   const [productQuery, setProductQuery] = useState('');
   const [stockMovements, setStockMovements] = useState(initialMovements);
 
-  const total = useMemo(
+  const subtotal = useMemo(
     () => cart.reduce((sum, item) => sum + item.price * item.quantity, 0),
     [cart]
   );
+
+  const discountAmount = useMemo(() => subtotal * (Number(discountPercent || 0) / 100), [subtotal, discountPercent]);
+  const additionAmount = useMemo(() => subtotal * (Number(additionPercent || 0) / 100), [subtotal, additionPercent]);
+  const total = useMemo(() => subtotal - discountAmount + additionAmount, [subtotal, discountAmount, additionAmount]);
 
   const visibleProducts = useMemo(() => {
     if (!productQuery.trim()) return products;
@@ -181,6 +188,16 @@ function App() {
       product.barcode.includes(q)
     );
   }, [productQuery, products]);
+
+  const filteredPdvProducts = useMemo(() => {
+    if (!pdvQuery.trim()) return products;
+    const q = pdvQuery.trim().toLowerCase();
+    return products.filter((product) =>
+      product.name.toLowerCase().includes(q) ||
+      product.internalCode.toLowerCase().includes(q) ||
+      product.barcode.includes(q)
+    );
+  }, [pdvQuery, products]);
 
   const handleAuthSubmit = async (event) => {
     event.preventDefault();
@@ -208,22 +225,23 @@ function App() {
     }
   };
 
-  const handleAddToCart = (product) => {
+  const handleAddToCart = (product, quantity = 1) => {
     setCart((current) => {
       const existing = current.find((item) => item.id === product.id);
       if (existing) {
         return current.map((item) =>
-          item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
+          item.id === product.id ? { ...item, quantity: Number(item.quantity) + Number(quantity) } : item
         );
       }
-      return [...current, { id: product.id, name: product.name, price: product.salePricePerKg, quantity: 1, type: product.unit }];
+      return [...current, { id: product.id, name: product.name, price: product.salePricePerKg, quantity: Number(quantity), type: product.unit }];
     });
   };
 
   const handleQtyChange = (id, value) => {
+    const nextValue = Number(value || 0.1);
     setCart((current) =>
       current
-        .map((item) => (item.id === id ? { ...item, quantity: Math.max(1, Number(value) || 1) } : item))
+        .map((item) => (item.id === id ? { ...item, quantity: Math.max(0.1, nextValue) } : item))
         .filter((item) => item.quantity > 0)
     );
   };
@@ -232,9 +250,17 @@ function App() {
     setCart((current) => current.filter((item) => item.id !== id));
   };
 
+  const clearCart = () => {
+    setCart([]);
+    setDiscountPercent(0);
+    setAdditionPercent(0);
+  };
+
   const finishSale = () => {
     setSaleMessage(`Venda finalizada com ${paymentMethod}. Total: ${formatMoney(total)}`);
     setCart([]);
+    setDiscountPercent(0);
+    setAdditionPercent(0);
   };
 
   const handleLogout = () => {
@@ -423,12 +449,16 @@ function App() {
             <div className="pdv-layout">
               <section className="panel pdv-panel">
                 <div className="search-row">
-                  <input type="text" placeholder="Buscar produto por nome ou código" />
-                  <button className="primary-button small">Buscar</button>
+                  <input
+                    type="text"
+                    value={pdvQuery}
+                    onChange={(event) => setPdvQuery(event.target.value)}
+                    placeholder="Buscar produto por nome, código ou barra"
+                  />
                 </div>
 
                 <div className="product-list">
-                  {products.map((product) => (
+                  {filteredPdvProducts.map((product) => (
                     <div key={product.id} className="product-item">
                       <div>
                         <strong>{product.name}</strong>
@@ -438,7 +468,7 @@ function App() {
                       </div>
                       <div className="product-actions">
                         <span>{formatMoney(product.salePricePerKg)}</span>
-                        <button className="secondary-button small" onClick={() => handleAddToCart(product)}>Adicionar</button>
+                        <button className="secondary-button small" onClick={() => handleAddToCart(product, 1)}>Adicionar</button>
                       </div>
                     </div>
                   ))}
@@ -460,7 +490,8 @@ function App() {
                         <div className="cart-item-controls">
                           <input
                             type="number"
-                            min="1"
+                            min="0.1"
+                            step="0.1"
                             value={item.quantity}
                             onChange={(event) => handleQtyChange(item.id, event.target.value)}
                           />
@@ -483,17 +514,51 @@ function App() {
                   ))}
                 </div>
 
-                <div className="total-box">
-                  <span>Subtotal</span>
-                  <strong>{formatMoney(total)}</strong>
+                <div className="discount-box small-box">
+                  <span>Desconto</span>
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={discountPercent}
+                    onChange={(event) => setDiscountPercent(Number(event.target.value || 0))}
+                  />
+                  <small>%</small>
                 </div>
-                <div className="discount-box">
-                  <span>Desconto autorizado</span>
-                  <input type="number" defaultValue={0} />
+
+                <div className="discount-box small-box">
+                  <span>Acréscimo</span>
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={additionPercent}
+                    onChange={(event) => setAdditionPercent(Number(event.target.value || 0))}
+                  />
+                  <small>%</small>
+                </div>
+
+                <div className="total-box-stack">
+                  <div className="total-box-line">
+                    <span>Subtotal</span>
+                    <strong>{formatMoney(subtotal)}</strong>
+                  </div>
+                  <div className="total-box-line">
+                    <span>Desconto</span>
+                    <strong>- {formatMoney(discountAmount)}</strong>
+                  </div>
+                  <div className="total-box-line">
+                    <span>Acréscimo</span>
+                    <strong>+ {formatMoney(additionAmount)}</strong>
+                  </div>
+                  <div className="total-box-line final-line">
+                    <span>Total</span>
+                    <strong>{formatMoney(total)}</strong>
+                  </div>
                 </div>
 
                 <button className="primary-button full" onClick={finishSale}>Finalizar venda</button>
-                <button className="secondary-button full">Cancelar venda</button>
+                <button className="secondary-button full" onClick={clearCart}>Cancelar venda</button>
                 {saleMessage && <div className="sale-message">{saleMessage}</div>}
               </aside>
             </div>
@@ -789,3 +854,4 @@ function App() {
 }
 
 export default App;
+
